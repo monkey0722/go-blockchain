@@ -9,15 +9,18 @@ import (
 	"time"
 )
 
+// MiningDifficulty -> Constans.
+const MiningDifficulty = 3
+
 /*
    Block Scope.
 */
 
 // Block -> Type Definition.
 type Block struct {
+	timestamp    int64
 	nonce        int
 	previousHash [32]byte
-	timestamp    int64
 	transactions []*Transaction
 }
 
@@ -44,7 +47,6 @@ func (b *Block) Print() {
 // Hash -> Create a 32-byte hash.
 func (b *Block) Hash() [32]byte {
 	m, _ := json.Marshal(b)
-	fmt.Println(string(m))
 	return sha256.Sum256([]byte(m))
 }
 
@@ -109,11 +111,42 @@ func (bc *Blockchain) AddTransaction(sender string, recipient string, value floa
 	bc.transactionPool = append(bc.transactionPool, t)
 }
 
+// CopyTransactionPool -> Copy the TransactionPool.
+func (bc *Blockchain) CopyTransactionPool() []*Transaction {
+	transactions := make([]*Transaction, 0)
+	for _, t := range bc.transactionPool {
+		transactions = append(
+			transactions,
+			NewTransaction(t.senderBlockchainAddress, t.recipientBlockchainAddress, t.value),
+		)
+	}
+	return transactions
+}
+
+// ValidProof -> Check if Proof is valid.
+func (bc *Blockchain) ValidProof(nonce int, previousHash [32]byte, transactions []*Transaction, difficulty int) bool {
+	zeros := strings.Repeat("0", difficulty)
+	guessBlock := Block{0, nonce, previousHash, transactions}
+	guessHashStr := fmt.Sprintf("%x", guessBlock.Hash())
+	return guessHashStr[:difficulty] == zeros
+}
+
+// ProofOfWork ->
+func (bc *Blockchain) ProofOfWork() int {
+	transactions := bc.CopyTransactionPool()
+	previousHash := bc.LastBlock().Hash()
+	nonce := 0
+	for !bc.ValidProof(nonce, previousHash, transactions, MiningDifficulty) {
+		nonce++
+	}
+	return nonce
+}
+
 /*
    Transaction Scope.
 */
 
-// Transaction -> Type Definition
+// Transaction -> Type Definition.
 type Transaction struct {
 	senderBlockchainAddress    string
 	recipientBlockchainAddress string
@@ -160,11 +193,13 @@ func main() {
 
 	blockchain.AddTransaction("A", "B", 1.0)
 	previousHash := blockchain.LastBlock().Hash()
-	blockchain.CreateBlock(10, previousHash)
+	nonce := blockchain.ProofOfWork()
+	blockchain.CreateBlock(nonce, previousHash)
 	blockchain.Print()
 
 	blockchain.AddTransaction("C", "D", 2.0)
 	previousHash = blockchain.LastBlock().Hash()
-	blockchain.CreateBlock(20, previousHash)
+	nonce = blockchain.ProofOfWork()
+	blockchain.CreateBlock(nonce, previousHash)
 	blockchain.Print()
 }
