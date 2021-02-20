@@ -9,8 +9,12 @@ import (
 	"time"
 )
 
-// MiningDifficulty -> Constans.
-const MiningDifficulty = 3
+// Constans.
+const (
+	MiningDifficulty = 3
+	MiningReward     = 1.0
+	MiningSender     = "THE BLOCKCHAIN"
+)
 
 /*
    Block Scope.
@@ -71,14 +75,16 @@ func (b *Block) MarshalJSON() ([]byte, error) {
 
 // Blockchain -> Type Definition.
 type Blockchain struct {
-	transactionPool []*Transaction
-	chain           []*Block
+	transactionPool   []*Transaction
+	chain             []*Block
+	blockchainAddress string
 }
 
 // NewBlockchain -> Create a new blockchain.
-func NewBlockchain() *Blockchain {
+func NewBlockchain(blockchainAddress string) *Blockchain {
 	b := &Block{}
 	bc := new(Blockchain)
+	bc.blockchainAddress = blockchainAddress
 	bc.CreateBlock(0, b.Hash())
 	return bc
 }
@@ -142,6 +148,16 @@ func (bc *Blockchain) ProofOfWork() int {
 	return nonce
 }
 
+// Mining -> Mining.
+func (bc *Blockchain) Mining() bool {
+	bc.AddTransaction(MiningSender, bc.blockchainAddress, MiningReward)
+	nonce := bc.ProofOfWork()
+	previousHash := bc.LastBlock().Hash()
+	bc.CreateBlock(nonce, previousHash)
+	log.Println("action=mining, status=success")
+	return true
+}
+
 /*
    Transaction Scope.
 */
@@ -188,18 +204,15 @@ func init() {
 }
 
 func main() {
-	blockchain := NewBlockchain()
+	myBlockchainAddress := "my_blockchain_address"
+	blockchain := NewBlockchain(myBlockchainAddress)
 	blockchain.Print()
 
 	blockchain.AddTransaction("A", "B", 1.0)
-	previousHash := blockchain.LastBlock().Hash()
-	nonce := blockchain.ProofOfWork()
-	blockchain.CreateBlock(nonce, previousHash)
+	blockchain.Mining()
 	blockchain.Print()
 
 	blockchain.AddTransaction("C", "D", 2.0)
-	previousHash = blockchain.LastBlock().Hash()
-	nonce = blockchain.ProofOfWork()
-	blockchain.CreateBlock(nonce, previousHash)
+	blockchain.Mining()
 	blockchain.Print()
 }
