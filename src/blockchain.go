@@ -158,6 +158,23 @@ func (bc *Blockchain) Mining() bool {
 	return true
 }
 
+// CalculateTotalAmount -> Calculate the total transaction.
+func (bc *Blockchain) CalculateTotalAmount(blockchainAddress string) float32 {
+	var totalAmount float32 = 0.0
+	for _, b := range bc.chain {
+		for _, t := range b.transactions {
+			value := t.value
+			if blockchainAddress == t.recipientBlockchainAddress {
+				totalAmount += value
+			}
+			if blockchainAddress == t.senderBlockchainAddress {
+				totalAmount -= value
+			}
+		}
+	}
+	return totalAmount
+}
+
 /*
    Transaction Scope.
 */
@@ -215,4 +232,8 @@ func main() {
 	blockchain.AddTransaction("C", "D", 2.0)
 	blockchain.Mining()
 	blockchain.Print()
+
+	fmt.Printf("my %.1f\n", blockchain.CalculateTotalAmount(myBlockchainAddress))
+	fmt.Printf("C %.1f\n", blockchain.CalculateTotalAmount("A"))
+	fmt.Printf("D %.1f\n", blockchain.CalculateTotalAmount("C"))
 }
