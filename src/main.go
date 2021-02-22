@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
+
+	"./wallet"
 )
 
 func init() {
@@ -9,4 +12,7 @@ func init() {
 }
 
 func main() {
+	w := wallet.NewWallet()
+	fmt.Println(w.PrivateKeyStr())
+	fmt.Println(w.PublickKeyStr())
 }
