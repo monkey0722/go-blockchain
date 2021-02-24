@@ -5,7 +5,9 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
+	"math/big"
 
 	"github.com/btcsuite/btcutil/base58"
 	"golang.org/x/crypto/ripemd160"
@@ -18,7 +20,7 @@ type Wallet struct {
 	blockchainAddress string
 }
 
-// NewWallet ->
+// NewWallet -> Create a new wallet.
 func NewWallet() *Wallet {
 	// 1. Creating ECDSA private key(32 bytes) public key(64 bytes)
 	w := new(Wallet)
@@ -76,17 +78,67 @@ func (w *Wallet) PrivateKeyStr() string {
 	return fmt.Sprintf("%x", w.privateKey.D.Bytes())
 }
 
-// PublickKey -> Return publickKey.
-func (w *Wallet) PublickKey() *ecdsa.PublicKey {
+// PublicKey -> Return publicKey.
+func (w *Wallet) PublicKey() *ecdsa.PublicKey {
 	return w.publicKey
 }
 
-// PublickKeyStr -> Return publickKey as a string.
-func (w *Wallet) PublickKeyStr() string {
+// PublicKeyStr -> Return publicKey as a string.
+func (w *Wallet) PublicKeyStr() string {
 	return fmt.Sprintf("%x%x", w.publicKey.X.Bytes(), w.publicKey.Y.Bytes())
 }
 
 // BlockchainAddress -> Return blockchainAddress.
 func (w *Wallet) BlockchainAddress() string {
 	return w.blockchainAddress
+}
+
+// Transaction -> Type Definition.
+type Transaction struct {
+	senderPrivateKey           *ecdsa.PrivateKey
+	senderPublicKey            *ecdsa.PublicKey
+	senderBlockchainAddress    string
+	recipientBlockchainAddress string
+	value                      float32
+}
+
+// NewTransaction -> Create a new transaction.
+func NewTransaction(
+	privateKey *ecdsa.PrivateKey,
+	publicKey *ecdsa.PublicKey,
+	sender string,
+	recipient string,
+	value float32) *Transaction {
+	return &Transaction{privateKey, publicKey, sender, recipient, value}
+}
+
+// GenerateSignature -> Generating a signature.
+func (t *Transaction) GenerateSignature() *Signature {
+	m, _ := json.Marshal(t)
+	h := sha256.Sum256([]byte(m))
+	r, s, _ := ecdsa.Sign(rand.Reader, t.senderPrivateKey, h[:])
+	return &Signature{r, s}
+}
+
+// MarshalJSON -> Create MarshalJSON for Transaction.
+func (t *Transaction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Sender    string  `json:"sender_blockchain_address"`
+		Recipient string  `json:"recipient_blockchain_address"`
+		Value     float32 `json:"value"`
+	}{
+		Sender:    t.senderBlockchainAddress,
+		Recipient: t.recipientBlockchainAddress,
+		Value:     t.value,
+	})
+}
+
+// Signature -> Type Definition.
+type Signature struct {
+	R *big.Int
+	S *big.Int
+}
+
+func (s *Signature) String() string {
+	return fmt.Sprintf("%x%x", s.R, s.S)
 }
