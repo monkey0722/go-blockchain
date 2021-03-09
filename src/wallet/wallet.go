@@ -85,7 +85,7 @@ func (w *Wallet) PublicKey() *ecdsa.PublicKey {
 
 // PublicKeyStr -> Return publicKey as a string.
 func (w *Wallet) PublicKeyStr() string {
-	return fmt.Sprintf("%x%x", w.publicKey.X.Bytes(), w.publicKey.Y.Bytes())
+	return fmt.Sprintf("%064x%064x", w.publicKey.X.Bytes(), w.publicKey.Y.Bytes())
 }
 
 // MarshalJSON -> Create MarshalJSON for Wallet.
