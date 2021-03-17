@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"../utils"
@@ -17,6 +18,7 @@ const (
 	MiningDifficulty = 3
 	MiningReward     = 1.0
 	MiningSender     = "THE BLOCKCHAIN"
+	MiningTimerSec   = 20
 )
 
 /*
@@ -82,6 +84,7 @@ type Blockchain struct {
 	chain             []*Block
 	blockchainAddress string
 	port              uint16
+	mux               sync.Mutex
 }
 
 // NewBlockchain -> Create a new blockchain.
@@ -208,12 +211,24 @@ func (bc *Blockchain) ProofOfWork() int {
 
 // Mining -> Mining.
 func (bc *Blockchain) Mining() bool {
+	bc.mux.Lock()
+	defer bc.mux.Unlock()
+
+	if len(bc.transactionPool) == 0 {
+		return false
+	}
+
 	bc.AddTransaction(MiningSender, bc.blockchainAddress, MiningReward, nil, nil)
 	nonce := bc.ProofOfWork()
 	previousHash := bc.LastBlock().Hash()
 	bc.CreateBlock(nonce, previousHash)
 	log.Println("action=mining, status=success")
 	return true
+}
+
+func (bc *Blockchain) StartMining() {
+	bc.Mining()
+	_ = time.AfterFunc(time.Second*MiningTimerSec, bc.StartMining)
 }
 
 // CalculateTotalAmount -> Calculate the total transaction.
