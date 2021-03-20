@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"../utils"
@@ -17,6 +18,7 @@ const (
 	MiningDifficulty = 3
 	MiningReward     = 1.0
 	MiningSender     = "THE BLOCKCHAIN"
+	MiningTimerSec   = 20
 )
 
 /*
@@ -82,6 +84,7 @@ type Blockchain struct {
 	chain             []*Block
 	blockchainAddress string
 	port              uint16
+	mux               sync.Mutex
 }
 
 // NewBlockchain -> Create a new blockchain.
@@ -92,6 +95,10 @@ func NewBlockchain(blockchainAddress string, port uint16) *Blockchain {
 	bc.CreateBlock(0, b.Hash())
 	bc.port = port
 	return bc
+}
+
+func (bc *Blockchain) TransactionPool() []*Transaction {
+	return bc.transactionPool
 }
 
 // MarshalJSON -> Create MarshalJSON for Blockchain.
@@ -123,6 +130,13 @@ func (bc *Blockchain) Print() {
 		block.Print()
 	}
 	fmt.Printf("%s\n", strings.Repeat("*", 25))
+}
+
+func (bc *Blockchain) CreateTransaction(sender string, recipient string, value float32,
+	senderPublicKey *ecdsa.PublicKey, s *utils.Signature) bool {
+	isTransacted := bc.AddTransaction(sender, recipient, value, senderPublicKey, s)
+	// TODO Sync
+	return isTransacted
 }
 
 // AddTransaction -> Add Transaction to Blockchain
@@ -197,12 +211,24 @@ func (bc *Blockchain) ProofOfWork() int {
 
 // Mining -> Mining.
 func (bc *Blockchain) Mining() bool {
+	bc.mux.Lock()
+	defer bc.mux.Unlock()
+
+	if len(bc.transactionPool) == 0 {
+		return false
+	}
+
 	bc.AddTransaction(MiningSender, bc.blockchainAddress, MiningReward, nil, nil)
 	nonce := bc.ProofOfWork()
 	previousHash := bc.LastBlock().Hash()
 	bc.CreateBlock(nonce, previousHash)
 	log.Println("action=mining, status=success")
 	return true
+}
+
+func (bc *Blockchain) StartMining() {
+	bc.Mining()
+	_ = time.AfterFunc(time.Second*MiningTimerSec, bc.StartMining)
 }
 
 // CalculateTotalAmount -> Calculate the total transaction.
@@ -233,7 +259,7 @@ type Transaction struct {
 	value                      float32
 }
 
-// NewTransaction ->
+// NewTransaction -> Create new transaction.
 func NewTransaction(sender string, recipient string, value float32) *Transaction {
 	return &Transaction{sender, recipient, value}
 }
@@ -241,9 +267,9 @@ func NewTransaction(sender string, recipient string, value float32) *Transaction
 // Print Make the output easy to read.
 func (t *Transaction) Print() {
 	fmt.Printf("%s\n", strings.Repeat("-", 40))
-	fmt.Printf("sender_blockchain_address   %s\n", t.senderBlockchainAddress)
+	fmt.Printf("sender_blockchain_address      %s\n", t.senderBlockchainAddress)
 	fmt.Printf("recipient_blockchain_address   %s\n", t.recipientBlockchainAddress)
-	fmt.Printf("value   %.1f\n", t.value)
+	fmt.Printf("value                          %.1f\n", t.value)
 }
 
 // MarshalJSON -> Create MarshalJSON for Transaction.
@@ -256,5 +282,38 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		Sender:    t.senderBlockchainAddress,
 		Recipient: t.recipientBlockchainAddress,
 		Value:     t.value,
+	})
+}
+
+// TransactionRequest -> Type Definition.
+type TransactionRequest struct {
+	SenderBlockchainAddress    *string  `json:"sender_blockchain_address"`
+	RecipientBlockchainAddress *string  `json:"recipient_blockchain_address"`
+	SenderPublicKey            *string  `json:"sender_public_key"`
+	Value                      *float32 `json:"value"`
+	Signature                  *string  `json:"signature"`
+}
+
+// Validate -> Validation of TransactionRequest
+func (tr *TransactionRequest) Validate() bool {
+	if tr.SenderBlockchainAddress == nil ||
+		tr.RecipientBlockchainAddress == nil ||
+		tr.SenderPublicKey == nil ||
+		tr.Value == nil ||
+		tr.Signature == nil {
+		return false
+	}
+	return true
+}
+
+type AmountResponse struct {
+	Amount float32 `json:"amount"`
+}
+
+func (ar *AmountResponse) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Amount float32 `json:"amount"`
+	}{
+		Amount: ar.Amount,
 	})
 }

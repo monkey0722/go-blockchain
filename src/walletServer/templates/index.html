@@ -19,6 +19,57 @@
           console.error(error);
         }
       })
+
+      $('#send_money_button').click(() => {
+        const confirm_result = confirm("Are you sure to send?");
+        if (confirm_result !== true) {
+          return alert('Canceled');
+        }
+
+        const transaction_data = {
+          'sender_private_key': $('#private_key').val(),
+          'sender_blockchain_address': $('#blockchain_address').val(),
+          'recipient_blockchain_address': $('#recipient_blockchain_address').val(),
+          'sender_public_key': $('#public_key').val(),
+          'value': $('#send_amount').val(),
+        };
+
+        $.ajax({
+          url: '/transaction',
+          type: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify(transaction_data),
+          success: function (response) {
+            console.info(response);
+            alert('Send success');
+          },
+          error: function (response) {
+            console.error(response);
+            alert('Send failed');
+          }
+        })
+
+        function reload_amount() {
+          let data = {'blockchain_address': $('#blockchain_address').val()}
+          $.ajax({
+            url: '/wallet/amount',
+            type: 'GET',
+            data: data,
+            success: function (response) {
+              let amount = response['amount'];
+              $('#wallet_amount').text(amount);
+              console.info(amount)
+            },
+            error: function(error) {
+              console.error(error)
+            }
+          })
+        }
+
+        $('#reload_wallet').click(() => {
+          reload_amount();
+        });
+      })
     })
   </script>
 </head>
