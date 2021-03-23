@@ -13,19 +13,23 @@ import (
 	"../utils"
 )
 
-// Constans.
 const (
-	MiningDifficulty = 3
-	MiningReward     = 1.0
-	MiningSender     = "THE BLOCKCHAIN"
-	MiningTimerSec   = 20
+	MINING_DIFFICULTY = 3
+	MINING_REWARD     = 1.0
+	MINING_SENDER     = "THE BLOCKCHAIN"
+	MINING_TIMER_SEC  = 20
+
+	BLOCKCHAIN_PORT_RANGE_START      = 5000
+	BLOCKCHAIN_PORT_RANGE_END        = 5003
+	NEIGHBOR_IP_RANGE_START          = 0
+	NEIGHBOR_IP_RANGE_END            = 1
+	BLOCKCHIN_NEIGHBOR_SYNC_TIME_SEC = 20
 )
 
 /*
    Block Scope.
 */
 
-// Block -> Type Definition.
 type Block struct {
 	timestamp    int64
 	nonce        int
@@ -78,13 +82,15 @@ func (b *Block) MarshalJSON() ([]byte, error) {
    Blockchain Scope.
 */
 
-// Blockchain -> Type Definition.
 type Blockchain struct {
 	transactionPool   []*Transaction
 	chain             []*Block
 	blockchainAddress string
 	port              uint16
 	mux               sync.Mutex
+
+	neighbors    []string
+	muxNeighbors sync.Mutex
 }
 
 // NewBlockchain -> Create a new blockchain.
@@ -95,6 +101,29 @@ func NewBlockchain(blockchainAddress string, port uint16) *Blockchain {
 	bc.CreateBlock(0, b.Hash())
 	bc.port = port
 	return bc
+}
+
+func (bc *Blockchain) Run() {
+	bc.StartSyncNeighbors()
+}
+
+func (bc *Blockchain) SetNeighbors() {
+	bc.neighbors = utils.FindNeighbors(
+		utils.GetHost(), bc.port,
+		NEIGHBOR_IP_RANGE_START, NEIGHBOR_IP_RANGE_END,
+		BLOCKCHAIN_PORT_RANGE_START, BLOCKCHAIN_PORT_RANGE_END)
+	log.Printf("%v", bc.neighbors)
+}
+
+func (bc *Blockchain) SyncNeighbors() {
+	bc.muxNeighbors.Lock()
+	defer bc.muxNeighbors.Unlock()
+	bc.SetNeighbors()
+}
+
+func (bc *Blockchain) StartSyncNeighbors() {
+	bc.SyncNeighbors()
+	_ = time.AfterFunc(time.Second*BLOCKCHIN_NEIGHBOR_SYNC_TIME_SEC, bc.StartSyncNeighbors)
 }
 
 func (bc *Blockchain) TransactionPool() []*Transaction {
@@ -148,7 +177,7 @@ func (bc *Blockchain) AddTransaction(
 	s *utils.Signature) bool {
 	t := NewTransaction(sender, recipient, value)
 
-	if sender == MiningSender {
+	if sender == MINING_SENDER {
 		bc.transactionPool = append(bc.transactionPool, t)
 		return true
 	}
@@ -203,7 +232,7 @@ func (bc *Blockchain) ProofOfWork() int {
 	transactions := bc.CopyTransactionPool()
 	previousHash := bc.LastBlock().Hash()
 	nonce := 0
-	for !bc.ValidProof(nonce, previousHash, transactions, MiningDifficulty) {
+	for !bc.ValidProof(nonce, previousHash, transactions, MINING_DIFFICULTY) {
 		nonce++
 	}
 	return nonce
@@ -218,7 +247,7 @@ func (bc *Blockchain) Mining() bool {
 		return false
 	}
 
-	bc.AddTransaction(MiningSender, bc.blockchainAddress, MiningReward, nil, nil)
+	bc.AddTransaction(MINING_SENDER, bc.blockchainAddress, MINING_REWARD, nil, nil)
 	nonce := bc.ProofOfWork()
 	previousHash := bc.LastBlock().Hash()
 	bc.CreateBlock(nonce, previousHash)
@@ -228,7 +257,7 @@ func (bc *Blockchain) Mining() bool {
 
 func (bc *Blockchain) StartMining() {
 	bc.Mining()
-	_ = time.AfterFunc(time.Second*MiningTimerSec, bc.StartMining)
+	_ = time.AfterFunc(time.Second*MINING_TIMER_SEC, bc.StartMining)
 }
 
 // CalculateTotalAmount -> Calculate the total transaction.
@@ -252,7 +281,6 @@ func (bc *Blockchain) CalculateTotalAmount(blockchainAddress string) float32 {
    Transaction Scope.
 */
 
-// Transaction -> Type Definition.
 type Transaction struct {
 	senderBlockchainAddress    string
 	recipientBlockchainAddress string
@@ -285,7 +313,6 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// TransactionRequest -> Type Definition.
 type TransactionRequest struct {
 	SenderBlockchainAddress    *string  `json:"sender_blockchain_address"`
 	RecipientBlockchainAddress *string  `json:"recipient_blockchain_address"`
