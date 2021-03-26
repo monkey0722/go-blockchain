@@ -39,7 +39,6 @@ type Block struct {
 	transactions []*Transaction
 }
 
-// NewBlock -> Create a new block.
 func NewBlock(nonce int, previousHash [32]byte, transactions []*Transaction) *Block {
 	b := new(Block)
 	b.timestamp = time.Now().UnixNano()
@@ -47,6 +46,18 @@ func NewBlock(nonce int, previousHash [32]byte, transactions []*Transaction) *Bl
 	b.previousHash = previousHash
 	b.transactions = transactions
 	return b
+}
+
+func (b *Block) PreviousHash() [32]byte {
+	return b.previousHash
+}
+
+func (b *Block) Nonce() int {
+	return b.nonce
+}
+
+func (b *Block) Transactions() []*Transaction {
+	return b.transactions
 }
 
 // Print Make the output easy to read.
@@ -239,7 +250,6 @@ func (bc *Blockchain) VerifyTransactionSignature(
 	return ecdsa.Verify(senderPublicKey, h[:], s.R, s.S)
 }
 
-// CopyTransactionPool -> Copy the TransactionPool.
 func (bc *Blockchain) CopyTransactionPool() []*Transaction {
 	transactions := make([]*Transaction, 0)
 	for _, t := range bc.transactionPool {
@@ -251,7 +261,6 @@ func (bc *Blockchain) CopyTransactionPool() []*Transaction {
 	return transactions
 }
 
-// ValidProof -> Check if Proof is valid.
 func (bc *Blockchain) ValidProof(nonce int, previousHash [32]byte, transactions []*Transaction, difficulty int) bool {
 	zeros := strings.Repeat("0", difficulty)
 	guessBlock := Block{0, nonce, previousHash, transactions}
@@ -259,7 +268,6 @@ func (bc *Blockchain) ValidProof(nonce int, previousHash [32]byte, transactions 
 	return guessHashStr[:difficulty] == zeros
 }
 
-// ProofOfWork ->
 func (bc *Blockchain) ProofOfWork() int {
 	transactions := bc.CopyTransactionPool()
 	previousHash := bc.LastBlock().Hash()
@@ -270,7 +278,6 @@ func (bc *Blockchain) ProofOfWork() int {
 	return nonce
 }
 
-// Mining -> Mining.
 func (bc *Blockchain) Mining() bool {
 	bc.mux.Lock()
 	defer bc.mux.Unlock()
@@ -292,7 +299,6 @@ func (bc *Blockchain) StartMining() {
 	_ = time.AfterFunc(time.Second*MINING_TIMER_SEC, bc.StartMining)
 }
 
-// CalculateTotalAmount -> Calculate the total transaction.
 func (bc *Blockchain) CalculateTotalAmount(blockchainAddress string) float32 {
 	var totalAmount float32 = 0.0
 	for _, b := range bc.chain {
@@ -309,6 +315,26 @@ func (bc *Blockchain) CalculateTotalAmount(blockchainAddress string) float32 {
 	return totalAmount
 }
 
+func (bc *Blockchain) ValidChain(chain []*Block) bool {
+	preBlock := chain[0]
+	currentIndex := 1
+
+	for currentIndex < len(chain) {
+		b := chain[currentIndex]
+		if b.previousHash != preBlock.Hash() {
+			return false
+		}
+
+		if !bc.ValidProof(b.Nonce(), b.PreviousHash(), b.Transactions(), MINING_DIFFICULTY) {
+			return false
+		}
+
+		preBlock = b
+		currentIndex += 1
+	}
+	return true
+}
+
 /*
    Transaction Scope.
 */
@@ -319,7 +345,6 @@ type Transaction struct {
 	value                      float32
 }
 
-// NewTransaction -> Create new transaction.
 func NewTransaction(sender string, recipient string, value float32) *Transaction {
 	return &Transaction{sender, recipient, value}
 }
